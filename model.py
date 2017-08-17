@@ -1,6 +1,7 @@
 import csv
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 from keras.models import Sequential
 from keras.layers import Flatten, Dense, Lambda, Cropping2D, Dropout
 from keras.layers.convolutional import Convolution2D
@@ -9,6 +10,22 @@ from sklearn.model_selection import train_test_split
 
 ch, row, col = 3, 160, 320  # Image format
 
+
+def flip_vertical(image, angle):
+    """
+    Flips images and angle on a vertical line
+    i.e right(+1) becomes left(-1)
+    """
+    flip_image = cv2.flip(image, 1)
+    flip_angle = angle * (-1)
+    return flip_image, flip_angle
+
+
+def img_to_YUV(img):
+    """ Converted Image from RGB to YUV """
+    return cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+
+
 samples = []
 with open('./data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
@@ -16,6 +33,7 @@ with open('./data/driving_log.csv') as csvfile:
         samples.append(line)
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
+
 
 def generator(samples, batch_size=32):
     num_samples = len(samples)
@@ -31,35 +49,15 @@ def generator(samples, batch_size=32):
                     source_path = line[0]
                     filename = source_path.split('/')[-1]
                     current_path = './data/IMG/' + filename
-                    # Get steering angle for a line
-                    steering_center = float(line[3])
-                    # Adjusted steering measurements for the side camera images
-                    correction = 0.3
-                    steering_left = steering_center + correction
-                    steering_right = steering_center - correction
-                    # Read in images from center, left and right camera
-                    center_source_path = line[0]
-                    center_filename = source_path.split('/')[-1]
-                    center_current_path = './data/IMG/' + filename
-                    left_source_path = line[1]
-                    left_filename = source_path.split('/')[-1]
-                    left_current_path = './data/IMG/' + filename
-                    right_source_path = line[2]
-                    right_filename = source_path.split('/')[-1]
-                    right_current_path = './data/IMG/' + filename
-                    img_center = cv2.imread(center_current_path)
-                    img_left = cv2.imread(left_current_path)
-                    img_right = cv2.imread(right_current_path)
-                    images.extend((img_center, img_left, img_right))
-                    measurements.extend((steering_center, steering_left, steering_right))
-                    augmented_img_center = cv2.flip(img_center, 1)
-                    augmented_img_left = cv2.flip(img_left, 1)
-                    augmented_img_right = cv2.flip(img_right, 1)
-                    augmented_steering_center = steering_center * (-1)
-                    augmented_steering_left = steering_left * (-1)
-                    augmented_steering_right = steering_right * (-1)
-                    images.extend((augmented_img_center, augmented_img_left, augmented_img_right))
-                    measurements.extend((augmented_steering_center, augmented_steering_left, augmented_steering_right))
+                    # Get images
+                    img_ctr = cv2.imread(current_path)
+                    ang_ctr = float(line[3])
+                    # Augment images
+                    aug_img_ctr, aug_ang_ctr = flip_vertical(img_ctr, ang_ctr)
+                    img_ctr = img_to_YUV(img_ctr)
+                    aug_img_ctr = img_to_YUV(aug_img_ctr)
+                    images.extend((img_ctr, aug_img_ctr))
+                    measurements.extend((ang_ctr, aug_ang_ctr))
 
                 X_train = np.array(images)
                 y_train = np.array(measurements)
@@ -83,7 +81,7 @@ validation_generator = generator(validation_samples, batch_size=32)
 # Fully connected: neurons: 1 (Output)
 
 model = Sequential()
-model.add(Lambda(lambda x: (x / 127.5) - 1.0, input_shape=(row, col, ch), output_shape=(row, col, ch)))
+model.add(Lambda(lambda x: (x / 127.5) - 1.0, input_shape=(row, col, ch)))
 model.add(Cropping2D(cropping=((70, 25), (0, 0))))
 model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2)))
 model.add(Convolution2D(36, 5, 5, activation='elu', subsample=(2, 2)))
@@ -98,7 +96,20 @@ model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
 model.compile(loss='mse', optimizer='adam')
-model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=3)
+history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=2, verbose=1)
+
+# Print the keys contained in the history object
+print(history_object.history.keys())
+
+# Plot the training and validation loss for each epoch
+plt.plot(history_object.history['loss'])
+plt.plot(history_object.history['val_loss'])
+plt.title('model mean squared error loss')
+plt.ylabel('mean squared error loss')
+plt.xlabel('epoch')
+plt.legend(['training set', 'validation set'], loc='upper right')
+plt.show()
+
 
 print('Saving model...')
 model.save('model.h5')
