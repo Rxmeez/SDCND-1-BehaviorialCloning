@@ -11,6 +11,11 @@ from sklearn.model_selection import train_test_split
 ch, row, col = 3, 160, 320  # Image format
 
 
+def crop_resize(img, changetosize):
+    # TODO: create a function that will take the image in crop and resize
+    img = img
+
+
 def flip_vertical(image, angle):
     """
     Flips images and angle on a vertical line
@@ -22,8 +27,10 @@ def flip_vertical(image, angle):
 
 
 def img_to_YUV(img):
-    """ Converted Image from RGB to YUV """
-    return cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+    """ Converted Image from BGR to RGB """
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+    return img
 
 
 samples = []
@@ -33,6 +40,8 @@ with open('./data/driving_log.csv') as csvfile:
         samples.append(line)
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
+
+# TODO: Fix Generator to read all of the data which is being augmeneted aswell
 
 
 def generator(samples, batch_size=32):
@@ -45,19 +54,26 @@ def generator(samples, batch_size=32):
                 images = []
                 measurements = []
                 for batch_sample in batch_samples:
-                    # Get image source path
-                    source_path = line[0]
-                    filename = source_path.split('/')[-1]
-                    current_path = './data/IMG/' + filename
-                    # Get images
-                    img_ctr = cv2.imread(current_path)
-                    ang_ctr = float(line[3])
-                    # Augment images
-                    aug_img_ctr, aug_ang_ctr = flip_vertical(img_ctr, ang_ctr)
-                    img_ctr = img_to_YUV(img_ctr)
-                    aug_img_ctr = img_to_YUV(aug_img_ctr)
-                    images.extend((img_ctr, aug_img_ctr))
-                    measurements.extend((ang_ctr, aug_ang_ctr))
+                    for i in range(3):
+                        # Source for image (center[0], left[1], right[2])
+                        filename = line[i].split('/')[-1]
+                        current_path = "./data/IMG/{}".format(filename)
+                        # Image Color filter
+                        img = img_to_YUV(cv2.imread(current_path))
+                        # Getting steering correction for images left and right
+                        correction = 0.25
+                        steering = float(line[3])
+                        if i == 1:
+                            steering = steering + correction
+                        elif i == 2:
+                            steering = steering - correction
+                        else:
+                            steering = steering
+                        # Augment a flip of the image
+                        aug_img, aug_steering = flip_vertical(img, steering)
+                        # Append all the images and measurements
+                        images.extend((img, aug_img))
+                        measurements.extend((steering, aug_steering))
 
                 X_train = np.array(images)
                 y_train = np.array(measurements)
@@ -83,9 +99,9 @@ validation_generator = generator(validation_samples, batch_size=32)
 model = Sequential()
 model.add(Lambda(lambda x: (x / 127.5) - 1.0, input_shape=(row, col, ch)))
 model.add(Cropping2D(cropping=((70, 25), (0, 0))))
-model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2)))
-model.add(Convolution2D(36, 5, 5, activation='elu', subsample=(2, 2)))
-model.add(Convolution2D(48, 5, 5, activation='elu', subsample=(2, 2)))
+model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2), border_mode='same'))
+model.add(Convolution2D(36, 5, 5, activation='elu', subsample=(2, 2), border_mode='same'))
+model.add(Convolution2D(48, 5, 5, activation='elu', subsample=(2, 2), border_mode='same'))
 model.add(Convolution2D(64, 3, 3, activation='elu'))
 model.add(Convolution2D(64, 3, 3, activation='elu'))
 model.add(Dropout(0.5))
@@ -96,7 +112,7 @@ model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
 model.compile(loss='mse', optimizer='adam')
-history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=2, verbose=1)
+history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=10, verbose=1)
 
 # Print the keys contained in the history object
 print(history_object.history.keys())
