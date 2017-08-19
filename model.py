@@ -1,5 +1,6 @@
 import csv
 import cv2
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.models import Sequential
@@ -11,9 +12,15 @@ from sklearn.model_selection import train_test_split
 ch, row, col = 3, 160, 320  # Image format
 
 
-def crop_resize(img, changetosize):
-    # TODO: create a function that will take the image in crop and resize
-    img = img
+def crop_resize(image):
+    """
+    Crop the images horizon and car bonnet
+    and resize image (64, 64)
+    """
+    shape = image.shape
+    image = image[math.floor(shape[0]/5):shape[0]-25, 0:shape[1]]
+    image = cv2.resize(image, (64, 64), interpolation=cv2.INTER_AREA)
+    return image
 
 
 def flip_vertical(image, angle):
@@ -29,7 +36,6 @@ def flip_vertical(image, angle):
 def img_to_YUV(img):
     """ Converted Image from BGR to RGB """
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
     return img
 
 
@@ -59,7 +65,7 @@ def generator(samples, batch_size=32):
                         filename = line[i].split('/')[-1]
                         current_path = "./data/IMG/{}".format(filename)
                         # Image Color filter
-                        img = img_to_YUV(cv2.imread(current_path))
+                        img = crop_resize(img_to_YUV(cv2.imread(current_path)))
                         # Getting steering correction for images left and right
                         correction = 0.25
                         steering = float(line[3])
@@ -97,11 +103,10 @@ validation_generator = generator(validation_samples, batch_size=32)
 # Fully connected: neurons: 1 (Output)
 
 model = Sequential()
-model.add(Lambda(lambda x: (x / 127.5) - 1.0, input_shape=(row, col, ch)))
-model.add(Cropping2D(cropping=((70, 25), (0, 0))))
-model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2), border_mode='same'))
-model.add(Convolution2D(36, 5, 5, activation='elu', subsample=(2, 2), border_mode='same'))
-model.add(Convolution2D(48, 5, 5, activation='elu', subsample=(2, 2), border_mode='same'))
+model.add(Lambda(lambda x: (x / 127.5) - 1.0, input_shape=(64, 64, 3)))
+model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2)))
+model.add(Convolution2D(36, 5, 5, activation='elu', subsample=(2, 2)))
+model.add(Convolution2D(48, 5, 5, activation='elu', subsample=(2, 2)))
 model.add(Convolution2D(64, 3, 3, activation='elu'))
 model.add(Convolution2D(64, 3, 3, activation='elu'))
 model.add(Dropout(0.5))
@@ -112,7 +117,7 @@ model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
 model.compile(loss='mse', optimizer='adam')
-history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=10, verbose=1)
+history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=5, verbose=1)
 
 # Print the keys contained in the history object
 print(history_object.history.keys())
