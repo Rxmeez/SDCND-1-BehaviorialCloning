@@ -9,8 +9,6 @@ from keras.layers.convolutional import Convolution2D
 import sklearn
 from sklearn.model_selection import train_test_split
 
-ch, row, col = 3, 160, 320  # Image format
-
 
 def crop_resize(image):
     """
