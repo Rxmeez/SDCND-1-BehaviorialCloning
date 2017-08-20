@@ -18,7 +18,7 @@ def crop_resize(image):
     and resize image (64, 64)
     """
     shape = image.shape
-    image = image[math.floor(shape[0]/5):shape[0]-25, 0:shape[1]]
+    image = image[math.floor(shape[0]/3):shape[0]-25, 0:shape[1]]
     image = cv2.resize(image, (64, 64), interpolation=cv2.INTER_AREA)
     return image
 
@@ -34,6 +34,9 @@ def flip_vertical(image, angle):
 
 
 def aug_brightness(image):
+    """
+    Adds random value of brightness to the image
+    """
     image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     image = np.array(image, dtype=np.float64)
     random_bright = .5+np.random.uniform()
@@ -42,6 +45,44 @@ def aug_brightness(image):
     image = np.array(image, dtype=np.uint8)
     image = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
     return image
+
+
+def add_random_shadow(image):
+    """
+    Applies random shadows to the image
+    """
+    top_y = 320 * np.random.uniform()
+    top_x = 0
+    bot_x = 160
+    bot_y = 320 * np.random.uniform()
+    image_hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    shadow_mask = 0 * image_hls[:, :, 1]
+    X_m = np.mgrid[0:image.shape[0], 0:image.shape[1]][0]
+    Y_m = np.mgrid[0:image.shape[0], 0:image.shape[1]][1]
+    shadow_mask[((X_m-top_x)*(bot_y-top_y)-(bot_x-top_x)*(Y_m-top_y) >= 0)] = 1
+    if np.random.randint(2) == 1:
+        random_bright = .5
+        cond1 = shadow_mask == 1
+        cond0 = shadow_mask == 0
+        if np.random.randint(2) == 1:
+            image_hls[:, :, 1][cond1] = image_hls[:, :, 1][cond1]*random_bright
+        else:
+            image_hls[:, :, 1][cond0] = image_hls[:, :, 1][cond0]*random_bright
+    image = cv2.cvtColor(image_hls, cv2.COLOR_HLS2RGB)
+    return image
+
+
+def preprocess(image, angle):
+    """
+    Add all the preprocess steps into one function
+    """
+    rand_flip = np.random.randint(2)  # 0 or 1
+    image = aug_brightness(image)
+    image = add_random_shadow(image)
+    if rand_flip == 1:
+        image, angle = flip_vertical(image, angle)
+    image = crop_resize(image)
+    return image, angle
 
 
 samples = []
@@ -67,8 +108,6 @@ def generator(samples, batch_size=32):
                         # Source for image (center[0], left[1], right[2])
                         filename = line[i].split('/')[-1]
                         current_path = "./data/IMG/{}".format(filename)
-                        # Image Color filter
-                        img = crop_resize(cv2.imread(current_path))
                         # Getting steering correction for images left and right
                         correction = 0.25
                         steering = float(line[3])
@@ -78,12 +117,14 @@ def generator(samples, batch_size=32):
                             steering = steering - correction
                         else:
                             steering = steering
-                        # Augment a flip of the image
-                        aug_img, aug_steering = flip_vertical(img, steering)
-                        aug_img = aug_brightness(aug_img)
+                        # Read image
+                        img = cv2.imread(current_path)
+                        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                        # Image preprocess
+                        img, steering = preprocess(img, steering)
                         # Append all the images and measurements
-                        images.extend((img, aug_img))
-                        measurements.extend((steering, aug_steering))
+                        images.append(img)
+                        measurements.append(steering)
 
                 X_train = np.array(images)
                 y_train = np.array(measurements)
@@ -121,7 +162,7 @@ model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
 model.compile(loss='mse', optimizer='adam')
-history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=5, verbose=1)
+history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples)*6, validation_data=validation_generator, nb_val_samples=len(validation_samples)*6, nb_epoch=5, verbose=1)
 
 # Print the keys contained in the history object
 print(history_object.history.keys())

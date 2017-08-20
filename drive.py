@@ -19,15 +19,17 @@ from keras.models import load_model
 import h5py
 from keras import __version__ as keras_version
 
+
 def crop_resize(image):
     """
     Crop the images horizon and car bonnet
     and resize image (64, 64)
     """
     shape = image.shape
-    image = image[math.floor(shape[0]/5):shape[0]-25, 0:shape[1]]
+    image = image[math.floor(shape[0]/3):shape[0]-25, 0:shape[1]]
     image = cv2.resize(image, (64, 64), interpolation=cv2.INTER_AREA)
     return image
+
 
 sio = socketio.Server()
 app = Flask(__name__)
