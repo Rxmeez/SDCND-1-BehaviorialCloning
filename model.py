@@ -4,7 +4,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda, Cropping2D, Dropout
+from keras.layers import Flatten, Dense, Lambda, Dropout
 from keras.layers.convolutional import Convolution2D
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -33,10 +33,15 @@ def flip_vertical(image, angle):
     return flip_image, flip_angle
 
 
-def img_to_YUV(img):
-    """ Converted Image from BGR to RGB """
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    return img
+def aug_brightness(image):
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    image = np.array(image, dtype=np.float64)
+    random_bright = .5+np.random.uniform()
+    image[:, :, 2] = image[:, :, 2] * random_bright
+    image[:, :, 2][image[:, :, 2] > 255] = 255
+    image = np.array(image, dtype=np.uint8)
+    image = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
+    return image
 
 
 samples = []
@@ -46,8 +51,6 @@ with open('./data/driving_log.csv') as csvfile:
         samples.append(line)
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
-
-# TODO: Fix Generator to read all of the data which is being augmeneted aswell
 
 
 def generator(samples, batch_size=32):
@@ -65,7 +68,7 @@ def generator(samples, batch_size=32):
                         filename = line[i].split('/')[-1]
                         current_path = "./data/IMG/{}".format(filename)
                         # Image Color filter
-                        img = crop_resize(img_to_YUV(cv2.imread(current_path)))
+                        img = crop_resize(cv2.imread(current_path))
                         # Getting steering correction for images left and right
                         correction = 0.25
                         steering = float(line[3])
@@ -77,6 +80,7 @@ def generator(samples, batch_size=32):
                             steering = steering
                         # Augment a flip of the image
                         aug_img, aug_steering = flip_vertical(img, steering)
+                        aug_img = aug_brightness(aug_img)
                         # Append all the images and measurements
                         images.extend((img, aug_img))
                         measurements.extend((steering, aug_steering))
