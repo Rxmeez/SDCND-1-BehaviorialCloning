@@ -165,7 +165,7 @@ model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
 model.compile(loss='mse', optimizer='adam')
-history_object = model.fit_generator(train_generator, samples_per_epoch=30000, validation_data=validation_generator, nb_val_samples=6000, nb_epoch=5, verbose=1)
+history_object = model.fit_generator(train_generator, samples_per_epoch=30000, validation_data=validation_generator, nb_val_samples=6000, nb_epoch=10, verbose=1)
 # len(train_samples), len(validation_samples)
 # Print the keys contained in the history object
 print(history_object.history.keys())
