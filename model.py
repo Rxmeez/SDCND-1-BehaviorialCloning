@@ -4,7 +4,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda, Dropout
+from keras.layers import Flatten, Dense, Lambda, Dropout, MaxPooling2D, ELU
 from keras.layers.convolutional import Convolution2D
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -87,8 +87,8 @@ samples = []
 with open('./data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
-        if abs(float(line[3])) < 0.001 and np.random.uniform() < 0.99:
-            continue
+    #    if abs(float(line[3])) < 0.10 and np.random.uniform() < 0.99:
+    #        continue
         samples.append(line)
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
@@ -153,17 +153,21 @@ model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2)))
 model.add(Convolution2D(36, 5, 5, activation='elu', subsample=(2, 2)))
 model.add(Convolution2D(48, 5, 5, activation='elu', subsample=(2, 2)))
 model.add(Convolution2D(64, 3, 3, activation='elu'))
+model.add(Dropout(0.5))
 model.add(Convolution2D(64, 3, 3, activation='elu'))
 model.add(Dropout(0.5))
 model.add(Flatten())
 model.add(Dense(100, activation='elu'))
+model.add(Dropout(0.5))
 model.add(Dense(50, activation='elu'))
+model.add(Dropout(0.5))
 model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
-model.compile(loss='mse', optimizer='adam')
-history_object = model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=3, verbose=1)
 
+model.compile(loss='mse', optimizer='adam')
+history_object = model.fit_generator(train_generator, samples_per_epoch=30000, validation_data=validation_generator, nb_val_samples=len(validation_samples), nb_epoch=3, verbose=1)
+# len(train_samples)
 # Print the keys contained in the history object
 print(history_object.history.keys())
 
