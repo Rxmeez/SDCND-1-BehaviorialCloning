@@ -87,8 +87,8 @@ samples = []
 with open('./data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
-    #    if abs(float(line[3])) < 0.10 and np.random.uniform() < 0.99:
-    #        continue
+        #if abs(float(line[3])) < 0.15 and np.random.uniform() < 1.0:
+        #    continue
         samples.append(line)
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
@@ -104,13 +104,14 @@ def generator(samples, batch_size=32):
                 images = []
                 measurements = []
                 for batch_sample in batch_samples:
+                    #print(batch_sample)
                     for i in range(3):
                         # Source for image (center[0], left[1], right[2])
-                        filename = line[i].split('/')[-1]
+                        filename = batch_sample[i].split('/')[-1]
                         current_path = "./data/IMG/{}".format(filename)
                         # Getting steering correction for images left and right
                         correction = 0.25
-                        steering = float(line[3])
+                        steering = float(batch_sample[3])
                         if i == 1:
                             steering = steering + correction
                         elif i == 2:
