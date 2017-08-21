@@ -4,7 +4,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D, ELU
+from keras.layers import Flatten, Dense, Lambda, Dropout
 from keras.layers.convolutional import Convolution2D
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -79,7 +79,7 @@ def preprocess(image, angle):
     image = add_random_shadow(image)
     if rand_flip == 1:
         image, angle = flip_vertical(image, angle)
-    # image = crop_resize(image)
+    image = crop_resize(image)
     return image, angle
 
 
@@ -87,7 +87,7 @@ samples = []
 with open('./data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
-        #if abs(float(line[3])) < 0.15 and np.random.uniform() < 1.0:
+        # if abs(float(line[3])) < 0.15 and np.random.uniform() < 1.0:
         #    continue
         samples.append(line)
 
@@ -104,7 +104,6 @@ def generator(samples, batch_size=32):
                 images = []
                 measurements = []
                 for batch_sample in batch_samples:
-                    #print(batch_sample)
                     for i in range(3):
                         # Source for image (center[0], left[1], right[2])
                         filename = batch_sample[i].split('/')[-1]
@@ -147,7 +146,7 @@ validation_generator = generator(validation_samples, batch_size=32)
 # Fully connected: neurons: 50, activation: ELU
 # Fully connected: neurons: 10, activation: ELU
 # Fully connected: neurons: 1 (Output)
-"""
+
 model = Sequential()
 model.add(Lambda(lambda x: (x / 127.5) - 1.0, input_shape=(64, 64, 3)))
 model.add(Convolution2D(24, 5, 5, activation='elu', subsample=(2, 2)))
@@ -164,31 +163,6 @@ model.add(Dense(50, activation='elu'))
 model.add(Dropout(0.5))
 model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
-"""
-
-# New Test model
-model = Sequential()
-model.add(Lambda(lambda x: (x / 255.0) - 0.5, input_shape=(160, 320, 3)))
-model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode='same'))
-model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode='same'))
-model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode='same'))
-model.add(ELU())
-model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode='same'))
-model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode='same'))
-model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode='same'))
-model.add(ELU())
-model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode='same'))
-model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode='same'))
-model.add(Convolution2D(64, 5, 5, subsample=(2, 2), border_mode='same'))
-model.add(ELU())
-model.add(Flatten())
-model.add(Dropout(.5))
-model.add(Dense(512))
-model.add(Dense(64))
-model.add(Dense(8))
-model.add(Dropout(.5))
-model.add(ELU())
-model.add(Dense(1))
 
 model.compile(loss='mse', optimizer='adam')
 history_object = model.fit_generator(train_generator, samples_per_epoch=30000, validation_data=validation_generator, nb_val_samples=6000, nb_epoch=5, verbose=1)
