@@ -87,8 +87,8 @@ samples = []
 with open('./data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
-        # if abs(float(line[3])) < 0.15 and np.random.uniform() < 1.0:
-        #    continue
+        if abs(float(line[3])) < 0.15 and np.random.uniform() < 0.9:
+            continue
         samples.append(line)
 
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
