@@ -83,14 +83,17 @@ def preprocess(image, angle):
     return image, angle
 
 
+# Samples where all the data points will be stored.
 samples = []
+# Reading the data points from the file
 with open('./data/driving_log.csv') as csvfile:
     reader = csv.reader(csvfile)
     for line in reader:
+        # Removes data where the steering wheel is less than 0.15 and leaves 10% of data points.
         if abs(float(line[3])) < 0.15 and np.random.uniform() < 0.9:
             continue
         samples.append(line)
-
+# Data split of samples for test and validation
 train_samples, validation_samples = train_test_split(samples, test_size=0.2)
 
 
@@ -101,24 +104,25 @@ def generator(samples, batch_size=32):
             for offset in range(0, num_samples, batch_size):
                 batch_samples = samples[offset:offset + batch_size]
 
-                images = []
-                measurements = []
+                images = []  # Where images are stored
+                measurements = []  # Where steering data is stored
                 for batch_sample in batch_samples:
                     for i in range(3):
                         # Source for image (center[0], left[1], right[2])
                         filename = batch_sample[i].split('/')[-1]
                         current_path = "./data/IMG/{}".format(filename)
                         # Getting steering correction for images left and right
-                        correction = 0.25
+                        correction = 0.25  # Self-assigned value
                         steering = float(batch_sample[3])
-                        if i == 1:
+                        if i == 1:   # Left Camera
                             steering = steering + correction
-                        elif i == 2:
+                        elif i == 2:  # Right Camera
                             steering = steering - correction
-                        else:
+                        else:  # Center Camera
                             steering = steering
                         # Read image
                         img = cv2.imread(current_path)
+                        # BGR2RGB because drive.py reads RGB
                         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                         # Image preprocess
                         img, steering = preprocess(img, steering)
@@ -128,6 +132,7 @@ def generator(samples, batch_size=32):
 
                 X_train = np.array(images)
                 y_train = np.array(measurements)
+                # Shuffle data
                 yield sklearn.utils.shuffle(X_train, y_train)
 
 
@@ -165,8 +170,9 @@ model.add(Dense(10, activation='elu'))
 model.add(Dense(1))  # Output
 
 model.compile(loss='mse', optimizer='adam')
+# 30000 seem like enought data to train on
 history_object = model.fit_generator(train_generator, samples_per_epoch=30000, validation_data=validation_generator, nb_val_samples=6000, nb_epoch=10, verbose=1)
-# len(train_samples), len(validation_samples)
+
 # Print the keys contained in the history object
 print(history_object.history.keys())
 
@@ -179,7 +185,7 @@ plt.xlabel('epoch')
 plt.legend(['training set', 'validation set'], loc='upper right')
 plt.show()
 
-
+# Save model to model.h5 to later be used by drive.py
 print('Saving model...')
 model.save('model.h5')
 print('model.h5 Saved')
